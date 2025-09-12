@@ -1,0 +1,2 @@
+# Bdd-SkindTrade
+trabajo
