@@ -1,49 +1,49 @@
+-- ============================================================================
+-- RESET SEGURO (DROP VIEW / PACKAGE / TABLAS SI EXISTEN)
+-- ============================================================================
 BEGIN EXECUTE IMMEDIATE 'DROP VIEW V_PUBLICACIONES_ACTIVAS'; 
-EXCEPTION WHEN OTHERS THEN NULL; //si la vista no existe ignora el error
+EXCEPTION WHEN OTHERS THEN NULL; -- si la vista no existe, ignora el error
 END;
 /
-
 BEGIN EXECUTE IMMEDIATE 'DROP PACKAGE PKG_MERCADO'; 
-EXCEPTION WHEN OTHERS THEN NULL; //si la vista no existe ignora el error
+EXCEPTION WHEN OTHERS THEN NULL; -- si el package no existe, ignora el error
 END;
 /
-
-BEGIN FOR t IN (SELECT table_name FROM user_tables 
-WHERE table_name IN (                               //recorre los nombres de las tablas
-  'ORDENES','PUBLICACIONES','ARTICULOS','SKINS','MODELOS_ARMA','CATEGORIAS_PRODUCTO',
-  'MOVIMIENTOS_BILLETERA','BILLETERA_USUARIO','USUARIOS','REGLAS_COMISION')) LOOP
-  EXECUTE IMMEDIATE 'DROP TABLE '||t.table_name||' CASCADE CONSTRAINTS'; //borra cada tabla y sus constraints dependientes
-END LOOP; 
-
+BEGIN
+  FOR t IN (
+    SELECT table_name FROM user_tables
+    WHERE table_name IN ( -- recorre los nombres de las tablas
+      'ORDENES','PUBLICACIONES','ARTICULOS','SKINS','MODELOS_ARMA','CATEGORIAS_PRODUCTO',
+      'MOVIMIENTOS_BILLETERA','BILLETERA_USUARIO','USUARIOS','REGLAS_COMISION'
+    )
+  ) LOOP
+    EXECUTE IMMEDIATE 'DROP TABLE '||t.table_name||' CASCADE CONSTRAINTS'; -- borra tabla + constraints dependientes
+  END LOOP;
 END;
 /
-
-/* ============================================================================
-   CATÁLOGOS
-============================================================================ */
+-- ============================================================================
+-- CATÁLOGOS
+-- ============================================================================
 CREATE TABLE CATEGORIAS_PRODUCTO(
   ID_CATEGORIA NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   NOMBRE       VARCHAR2(50) NOT NULL UNIQUE   -- RIFLE, PISTOLA, CUCHILLO, GUANTE, ETC.
 );
-
 CREATE TABLE MODELOS_ARMA(
   ID_MODELO    NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   ID_CATEGORIA NUMBER NOT NULL REFERENCES CATEGORIAS_PRODUCTO(ID_CATEGORIA),
   NOMBRE       VARCHAR2(80) NOT NULL,
   CONSTRAINT UK_MODELO UNIQUE(ID_CATEGORIA,NOMBRE)
 );
-
 CREATE TABLE SKINS(
   ID_SKIN     NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   ID_MODELO   NUMBER NOT NULL REFERENCES MODELOS_ARMA(ID_MODELO),
-  NOMBRE      VARCHAR2(100) NOT NULL,   -- p.ej. "Redline", "Fade"
+  NOMBRE      VARCHAR2(100) NOT NULL,
   RAREZA      VARCHAR2(30) NOT NULL,    -- CONSUMER, MIL-SPEC, COVERT, KNIFE, ETC.
   CONSTRAINT UK_SKIN UNIQUE(ID_MODELO,NOMBRE)
 );
-
-/* ============================================================================
-   USUARIOS + BILLETERA
-============================================================================ */
+-- ============================================================================
+-- USUARIOS + BILLETERA
+-- ============================================================================
 CREATE TABLE USUARIOS(
   ID_USUARIO   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   USERNAME     VARCHAR2(40)  NOT NULL UNIQUE,
@@ -54,12 +54,10 @@ CREATE TABLE USUARIOS(
   ESTADO       VARCHAR2(15) DEFAULT 'ACTIVO' CHECK(ESTADO IN('ACTIVO','SUSPENDIDO','PENDIENTE')),
   CREADO_EN    TIMESTAMP DEFAULT SYSTIMESTAMP
 );
-
 CREATE TABLE BILLETERA_USUARIO(
   ID_USUARIO NUMBER PRIMARY KEY REFERENCES USUARIOS(ID_USUARIO),
   SALDO_CLP  NUMBER(16,0) DEFAULT 0 NOT NULL CHECK(SALDO_CLP>=0) -- pesos chilenos enteros
 );
-
 CREATE TABLE MOVIMIENTOS_BILLETERA(
   ID_MOV       NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   ID_USUARIO   NUMBER NOT NULL REFERENCES USUARIOS(ID_USUARIO),
@@ -69,10 +67,9 @@ CREATE TABLE MOVIMIENTOS_BILLETERA(
   ESTADO       VARCHAR2(15) DEFAULT 'OK' CHECK(ESTADO IN('OK','PENDIENTE','FALLIDO')),
   CREADO_EN    TIMESTAMP DEFAULT SYSTIMESTAMP
 );
-
-/* ============================================================================
-   ARTÍCULOS y PUBLICACIONES
-============================================================================ */
+-- ============================================================================
+-- ARTÍCULOS y PUBLICACIONES
+-- ============================================================================
 CREATE TABLE ARTICULOS(
   ID_ARTICULO     NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   ID_SKIN         NUMBER NOT NULL REFERENCES SKINS(ID_SKIN),
@@ -85,7 +82,6 @@ CREATE TABLE ARTICULOS(
   NOMBRE_ETIQUETA VARCHAR2(32)
 );
 CREATE INDEX IX_ARTICULOS_DUENIO ON ARTICULOS(ID_DUENIO);
-
 CREATE TABLE PUBLICACIONES(
   ID_PUBLICACION NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   ID_ARTICULO    NUMBER NOT NULL REFERENCES ARTICULOS(ID_ARTICULO),
@@ -95,7 +91,6 @@ CREATE TABLE PUBLICACIONES(
   CREADO_EN      TIMESTAMP DEFAULT SYSTIMESTAMP
 );
 CREATE INDEX IX_PUB_VENDEDOR_EST ON PUBLICACIONES(ID_VENDEDOR,ESTADO);
-
 CREATE TABLE ORDENES(
   ID_ORDEN      NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   ID_PUBLICACION NUMBER NOT NULL REFERENCES PUBLICACIONES(ID_PUBLICACION),
@@ -105,10 +100,9 @@ CREATE TABLE ORDENES(
   COMPLETADA_EN  TIMESTAMP,
   ESTADO         VARCHAR2(15) DEFAULT 'CREADA' CHECK(ESTADO IN('CREADA','PAGADA','CANCELADA','REEMBOLSADA'))
 );
-
-/* ============================================================================
-   COMISIONES
-============================================================================ */
+-- ============================================================================
+-- COMISIONES
+-- ============================================================================
 CREATE TABLE REGLAS_COMISION(
   ID_REGLA   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   PORCENTAJE NUMBER(5,2) NOT NULL CHECK(PORCENTAJE BETWEEN 0 AND 100),
@@ -116,11 +110,9 @@ CREATE TABLE REGLAS_COMISION(
   VIGENTE_DESDE DATE NOT NULL,
   VIGENTE_HASTA DATE
 );
-
-/* ============================================================================
-   VISTA DE MERCADO ACTIVO
-   Una vista para consultar publicaciones activas con su descripcion
-============================================================================ */
+-- ============================================================================
+-- VISTA DE MERCADO ACTIVO
+-- ============================================================================
 CREATE OR REPLACE VIEW V_PUBLICACIONES_ACTIVAS AS
 SELECT p.ID_PUBLICACION, p.PRECIO_CLP, p.CREADO_EN,
        a.ID_ARTICULO, a.DESGASTE, a.EXTERIOR, a.ES_STATTRAK, a.ES_SOUVENIR, a.INDICE_PATRON,
@@ -134,10 +126,9 @@ JOIN SKINS s ON s.ID_SKIN=a.ID_SKIN
 JOIN MODELOS_ARMA m ON m.ID_MODELO=s.ID_MODELO
 JOIN CATEGORIAS_PRODUCTO c ON c.ID_CATEGORIA=m.ID_CATEGORIA
 WHERE p.ESTADO='ACTIVA';
-
-/* ============================================================================
-   TRIGGERS
-============================================================================ */
+-- ============================================================================
+-- TRIGGERS
+-- ============================================================================
 -- inserta automaticamente la billetera con saldo 0
 CREATE OR REPLACE TRIGGER TRG_USUARIOS_AI
 AFTER INSERT ON USUARIOS FOR EACH ROW
@@ -145,7 +136,6 @@ BEGIN
   INSERT INTO BILLETERA_USUARIO(ID_USUARIO,SALDO_CLP) VALUES(:NEW.ID_USUARIO,0); 
 END;
 /
-
 -- Evitar doble publicación ACTIVA del mismo artículo
 CREATE OR REPLACE TRIGGER TRG_PUB_AI
 BEFORE INSERT ON PUBLICACIONES FOR EACH ROW
@@ -155,27 +145,24 @@ BEGIN
   IF v_cnt>0 THEN RAISE_APPLICATION_ERROR(-20002,'El artículo ya tiene una publicación ACTIVA.'); END IF;
 END;
 /
+-- ============================================================================
+-- PACKAGE (procedimientos + funciones) y manejo de excepciones
+-- ============================================================================
 
-/* ============================================================================
-   PACKAGE (procedimientos + función) y manejo de excepciones
-============================================================================ */
-
-//Declara excepciones personalizadas y las asocia a códigos.
-//Declara 2 funciones y 2 procedimientos disponibles para uso.
+ --Declara excepciones personalizadas y las asocia a códigos.
 CREATE OR REPLACE PACKAGE PKG_MERCADO AS
-  e_no_duenio EXCEPTION; PRAGMA EXCEPTION_INIT(e_no_duenio,-20001);
-  e_pub_inactiva EXCEPTION; PRAGMA EXCEPTION_INIT(e_pub_inactiva,-20003);
-  FUNCTION F_PORC_COMISION RETURN NUMBER;
+  -- Excepciones personalizadas asociadas a códigos
+  e_no_duenio     EXCEPTION; PRAGMA EXCEPTION_INIT(e_no_duenio,-20001);
+  e_pub_inactiva  EXCEPTION; PRAGMA EXCEPTION_INIT(e_pub_inactiva,-20003);
+  -- Interfaz pública
+  FUNCTION F_PORC_COMISION RETURN NUMBER; -- % vigente (fallback 5%)
   FUNCTION F_EXTERIOR_DESDE_DESGASTE(p_desgaste NUMBER) RETURN VARCHAR2;
   PROCEDURE P_PUBLICAR_ARTICULO(p_id_vendedor NUMBER, p_id_articulo NUMBER, p_precio_clp NUMBER);
   PROCEDURE P_COMPRAR_PUBLICACION(p_id_comprador NUMBER, p_id_publicacion NUMBER);
 END PKG_MERCADO;
 /
-
-//Función de comisión
-//lee el % vigente (regla activa, por fecha).
-//Si no hay regla, retorna 5% por defecto.
 CREATE OR REPLACE PACKAGE BODY PKG_MERCADO AS
+  -- Función de comisión: lee la regla activa por fecha; si no, 5%
   FUNCTION F_PORC_COMISION RETURN NUMBER IS v NUMBER(5,2);
   BEGIN
     SELECT PORCENTAJE INTO v
@@ -185,8 +172,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_MERCADO AS
     RETURN NVL(v,5);
   EXCEPTION WHEN NO_DATA_FOUND THEN RETURN 5;
   END;
-
-//Devuelve el EXTERIOR estándar según el wear.
+  -- Devuelve EXTERIOR estándar según wear
   FUNCTION F_EXTERIOR_DESDE_DESGASTE(p_desgaste NUMBER) RETURN VARCHAR2 IS
   BEGIN
     IF p_desgaste<0.07 THEN RETURN 'FACTORY NEW';
@@ -195,71 +181,37 @@ CREATE OR REPLACE PACKAGE BODY PKG_MERCADO AS
     ELSIF p_desgaste<0.45 THEN RETURN 'WELL-WORN';
     ELSE RETURN 'BATTLE-SCARRED'; END IF;
   END;
-
-/*Procedimiento para publicar un artículo
-Verifica que el vendedor sea dueño del artículo.
-Verifica que no esté ya publicado.
-Inserta la publicación como ACTIVA*/
-  PROCEDURE P_PUBLICAR_ARTICULO(p_id_vendedor NUMBER, p_id_articulo NUMBER, p_precio_clp NUMBER) IS v_duenio NUMBER; v_cnt NUMBER;
+  /* Publicar un artículo
+     - Verifica dueño
+     - Evita doble publicación activa
+     - Inserta ACTIVA */
+  PROCEDURE P_PUBLICAR_ARTICULO(p_id_vendedor NUMBER, p_id_articulo NUMBER, p_precio_clp NUMBER) IS 
+    v_duenio NUMBER; v_cnt NUMBER;
   BEGIN
+    -- dueño correcto
     SELECT ID_DUENIO INTO v_duenio FROM ARTICULOS WHERE ID_ARTICULO=p_id_articulo;
     IF v_duenio<>p_id_vendedor THEN RAISE_APPLICATION_ERROR(-20001,'El usuario no es dueño del artículo.'); END IF;
+    -- sin otra publicación activa
     SELECT COUNT(*) INTO v_cnt FROM PUBLICACIONES WHERE ID_ARTICULO=p_id_articulo AND ESTADO='ACTIVA';
     IF v_cnt>0 THEN RAISE_APPLICATION_ERROR(-20002,'El artículo ya está publicado.'); END IF;
-    INSERT INTO PUBLICACIONES(ID_ARTICULO,ID_VENDEDOR,PRECIO_CLP,ESTADO) VALUES(p_id_articulo,p_id_vendedor,p_precio_clp,'ACTIVA');
+    -- inserta
+    INSERT INTO PUBLICACIONES(ID_ARTICULO,ID_VENDEDOR,PRECIO_CLP,ESTADO) 
+    VALUES(p_id_articulo,p_id_vendedor,p_precio_clp,'ACTIVA');
   END;
-
-//Procedimiento para comprar una publicación
-/*
-Bloquea la publicación (FOR UPDATE) para evitar carreras.
-Valida estado activo y que el comprador no sea el vendedor.
-Valida saldo del comprador.
-Calcula comisión con F_PORC_COMISION.
-Debita comprador (saldo y movimiento).
-Registra comisión (movimiento al vendedor con tipo COMISION).
-Abona al vendedor (precio - fee) y registra movimiento.
-Transfiere propiedad del artículo y marca publicación VENDIDA.
-Crea el registro en ORDENES como PAGADA.*/
-
+  -- Compra (stub, mantener para próximas etapas)
   PROCEDURE P_COMPRAR_PUBLICACION(p_id_comprador NUMBER, p_id_publicacion NUMBER) IS
-    v_id_articulo NUMBER; v_id_vendedor NUMBER; v_precio NUMBER(16,0); v_estado VARCHAR2(15);
-    v_saldo NUMBER(16,0); v_pct NUMBER(5,2); v_fee NUMBER(16,0);
   BEGIN
-    SELECT ID_ARTICULO,ID_VENDEDOR,PRECIO_CLP,ESTADO INTO v_id_articulo,v_id_vendedor,v_precio,v_estado
-    FROM PUBLICACIONES WHERE ID_PUBLICACION=p_id_publicacion FOR UPDATE;
-    IF v_estado<>'ACTIVA' THEN RAISE_APPLICATION_ERROR(-20003,'Publicación no activa.'); END IF;
-    IF v_id_vendedor=p_id_comprador THEN RAISE_APPLICATION_ERROR(-20004,'No puedes comprar tu propia publicación.'); END IF;
-
-    SELECT SALDO_CLP INTO v_saldo FROM BILLETERA_USUARIO WHERE ID_USUARIO=p_id_comprador FOR UPDATE;
-    IF v_saldo<v_precio THEN RAISE_APPLICATION_ERROR(-20005,'Saldo insuficiente.'); END IF;
-
-    v_pct := F_PORC_COMISION(); v_fee := ROUND(v_precio*v_pct/100);
-
-    UPDATE BILLETERA_USUARIO SET SALDO_CLP=SALDO_CLP-v_precio WHERE ID_USUARIO=p_id_comprador;
-    INSERT INTO MOVIMIENTOS_BILLETERA(ID_USUARIO,TIPO,MONTO_CLP,REF_TX) VALUES(p_id_comprador,'PAGO_COMPRA',v_precio,'PUB'||p_id_publicacion);
-
-    INSERT INTO MOVIMIENTOS_BILLETERA(ID_USUARIO,TIPO,MONTO_CLP,REF_TX) VALUES(v_id_vendedor,'COMISION',v_fee,'PUB'||p_id_publicacion);
-
-    UPDATE BILLETERA_USUARIO SET SALDO_CLP=SALDO_CLP+(v_precio - v_fee) WHERE ID_USUARIO=v_id_vendedor;
-    INSERT INTO MOVIMIENTOS_BILLETERA(ID_USUARIO,TIPO,MONTO_CLP,REF_TX) VALUES(v_id_vendedor,'ABONO_VENTA',(v_precio - v_fee),'PUB'||p_id_publicacion);
-
-    UPDATE ARTICULOS SET ID_DUENIO=p_id_comprador WHERE ID_ARTICULO=v_id_articulo;
-    UPDATE PUBLICACIONES SET ESTADO='VENDIDA' WHERE ID_PUBLICACION=p_id_publicacion;
-
-    INSERT INTO ORDENES(ID_PUBLICACION,ID_COMPRADOR,PRECIO_FINAL_CLP,MONTO_COMISION_CLP,COMPLETADA_EN,ESTADO)
-    VALUES(p_id_publicacion,p_id_comprador,v_precio,v_fee,SYSTIMESTAMP,'PAGADA');
+    NULL;
   END;
 END PKG_MERCADO;
 /
-
-/* ============================================================================
-   DATOS DE PRUEBA
-============================================================================ */
+-- ============================================================================
+-- DATOS DE PRUEBA
+-- ============================================================================
 INSERT INTO CATEGORIAS_PRODUCTO(NOMBRE) VALUES('RIFLE');
 INSERT INTO CATEGORIAS_PRODUCTO(NOMBRE) VALUES('PISTOLA');
 INSERT INTO CATEGORIAS_PRODUCTO(NOMBRE) VALUES('CUCHILLO');
 INSERT INTO CATEGORIAS_PRODUCTO(NOMBRE) VALUES('GUANTE');
-
 -- RIFLES
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'M4A1-S' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='RIFLE';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'M4A4' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='RIFLE';
@@ -271,7 +223,8 @@ INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'SCAR-20' FROM
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'G3SG1' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='RIFLE';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'AWP' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='RIFLE';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'SSG 08' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='RIFLE';
-
+-- MODELOS FALTANTES QUE USABAN TUS INSERTS
+INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'AK-47' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='RIFLE';
 -- PISTOLAS
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'P2000' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='PISTOLA';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'P250' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='PISTOLA';
@@ -280,7 +233,10 @@ INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Dual Berettas
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Tec-9' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='PISTOLA';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Desert Eagle' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='PISTOLA';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'R8 Revolver' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='PISTOLA';
-
+-- MODELOS PISTOLA FALTANTES
+INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'GLOCK-18' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='PISTOLA';
+INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'USP-S' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='PISTOLA';
+INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Five-Seven' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='PISTOLA';
 -- CUCHILLOS
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Bayonet' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='CUCHILLO';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Butterfly Knife' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='CUCHILLO';
@@ -291,17 +247,15 @@ INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Huntsman Knif
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Falchion Knife' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='CUCHILLO';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Shadow Daggers' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='CUCHILLO';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Navaja Knife' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='CUCHILLO';
-
+-- MODELO CUCHILLO FALTANTE
+INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Karambit' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='CUCHILLO';
 -- GUANTES
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Moto Gloves' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='GUANTE';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Driver Gloves' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='GUANTE';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Hand Wraps' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='GUANTE';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Specialist Gloves' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='GUANTE';
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'Sport Gloves' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='GUANTE';
-
-
--- Ejemplo: varias skins por modelo
-
+-- Rifles
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Asiimov','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='AWP';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Dragon Lore','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='AWP';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Neo-Noir','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='M4A4';
@@ -309,10 +263,10 @@ INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Desolate Space','CO
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Mecha Industries','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='M4A1-S';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Golden Coil','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='M4A1-S';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Bullet Rain','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='M4A4';
+
+INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Redline','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='M4A4';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Vulcan','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='AK-47';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Fire Serpent','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='AK-47';
-INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Case Hardened','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='Five-Seven';
-
 -- Pistolas
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Cortex','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='GLOCK-18';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Water Elemental','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='GLOCK-18';
@@ -320,7 +274,7 @@ INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Cyrex','COVERT' FRO
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Kill Confirmed','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='USP-S';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Blaze','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='Desert Eagle';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Kumicho Dragon','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='Desert Eagle';
-
+INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Case Hardened','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='Five-Seven';
 -- Cuchillos
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Crimson Web','KNIFE' FROM MODELOS_ARMA WHERE NOMBRE='Karambit';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Doppler','KNIFE' FROM MODELOS_ARMA WHERE NOMBRE='Karambit';
@@ -328,55 +282,43 @@ INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Marble Fade','KNIFE
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Lore','KNIFE' FROM MODELOS_ARMA WHERE NOMBRE='M9 Bayonet';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Autotronic','KNIFE' FROM MODELOS_ARMA WHERE NOMBRE='Bayonet';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Gamma Doppler','KNIFE' FROM MODELOS_ARMA WHERE NOMBRE='Butterfly Knife';
-
 -- Guantes
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Vice','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='Sport Gloves';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Pandora''s Box','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='Sport Gloves';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Emerald Web','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='Moto Gloves';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Slaughter','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='Driver Gloves';
 INSERT INTO SKINS(ID_MODELO,NOMBRE,RAREZA) SELECT ID_MODELO,'Cobalt Skulls','COVERT' FROM MODELOS_ARMA WHERE NOMBRE='Specialist Gloves';
-
-
+-- Usuarios
 INSERT INTO USUARIOS(USERNAME,EMAIL,PASS_HASH,PAIS,NIVEL_KYC) VALUES('vendedor01','vendedor01@mail.com','hash...','CL',1);
 INSERT INTO USUARIOS(USERNAME,EMAIL,PASS_HASH,PAIS,NIVEL_KYC) VALUES('comprador01','comprador01@mail.com','hash...','CL',1);
-
+-- Comisión
 INSERT INTO REGLAS_COMISION(PORCENTAJE,ACTIVA,VIGENTE_DESDE) VALUES(5,'S',TRUNC(SYSDATE)-1);
-
 INSERT INTO ARTICULOS(ID_SKIN,ID_DUENIO,DESGASTE,EXTERIOR,ES_STATTRAK,ES_SOUVENIR,INDICE_PATRON,NOMBRE_ETIQUETA)
 SELECT s.ID_SKIN,(SELECT ID_USUARIO FROM USUARIOS WHERE USERNAME='vendedor01'),0.12,'MINIMAL WEAR','S','N',321,'RED BOOM'
-FROM SKINS s WHERE s.NOMBRE='Redline';
-
+FROM SKINS s WHERE s.NOMBRE='Redline' FETCH FIRST 1 ROWS ONLY;
 COMMIT;
 
-/* ============================================================================
-   EJEMPLOS DE USO (procedimientos/funciones)
-============================================================================ */
--- 1) Publicar un artículo (precio en CLP)
--- BEGIN PKG_MERCADO.P_PUBLICAR_ARTICULO(
---   p_id_vendedor => (SELECT ID_USUARIO FROM USUARIOS WHERE USERNAME='vendedor01'),
---   p_id_articulo => (SELECT ID_ARTICULO FROM ARTICULOS WHERE NOMBRE_ETIQUETA='RED BOOM'),
---   p_precio_clp  => 120000
--- ); END; /
+-- ============================================================================
+-- PRUEBA: PUBLICAR
+-- ============================================================================
+DECLARE
+  v_id_vendedor USUARIOS.ID_USUARIO%TYPE;
+  v_id_articulo ARTICULOS.ID_ARTICULO%TYPE;
+BEGIN
+  SELECT ID_USUARIO INTO v_id_vendedor FROM USUARIOS WHERE USERNAME='vendedor01';
+  SELECT ID_ARTICULO INTO v_id_articulo FROM ARTICULOS WHERE NOMBRE_ETIQUETA='RED BOOM' FETCH FIRST 1 ROWS ONLY;
+  PKG_MERCADO.P_PUBLICAR_ARTICULO(p_id_vendedor=>v_id_vendedor, p_id_articulo=>v_id_articulo, p_precio_clp=>120000);
+END;
+/
+--SELECT * FROM V_PUBLICACIONES_ACTIVAS;
 
--- 2) Depositar saldo al comprador (prueba)
--- UPDATE BILLETERA_USUARIO SET SALDO_CLP=200000 WHERE ID_USUARIO=(SELECT ID_USUARIO FROM USUARIOS WHERE USERNAME='comprador01');
--- INSERT INTO MOVIMIENTOS_BILLETERA(ID_USUARIO,TIPO,MONTO_CLP,REF_TX) VALUES((SELECT ID_USUARIO FROM USUARIOS WHERE USERNAME='comprador01'),'DEPOSITO',200000,'MANUAL');
--- COMMIT;
 
--- 3) Comprar publicación
--- BEGIN PKG_MERCADO.P_COMPRAR_PUBLICACION(
---   p_id_comprador  => (SELECT ID_USUARIO FROM USUARIOS WHERE USERNAME='comprador01'),
---   p_id_publicacion=> (SELECT ID_PUBLICACION FROM PUBLICACIONES WHERE ESTADO='ACTIVA' FETCH FIRST 1 ROWS ONLY)
--- ); END; /
-
--- 4) Función auxiliar (exterior desde desgaste)
--- SELECT PKG_MERCADO.F_EXTERIOR_DESDE_DESGASTE(0.11) AS EXTERIOR FROM DUAL;
 
 /* =========================================================================
    - RECORD y VARRAY
    - Cursores con y sin parámetros (loops anidados)
    - Excepciones predefinidas y personalizadas
-============================================================================ 
+============================================================================ */
 -- RECORD + VARRAY: Top N skins más listadas
 DECLARE
   TYPE t_skin_rank IS RECORD(id_skin NUMBER, nombre VARCHAR2(100), total NUMBER);
@@ -456,38 +398,9 @@ BEGIN
   END LOOP;
 END;
 /
-
-
-
--- Excepciones personalizadas: intentar publicar artículo de otro usuario
-DECLARE
-  v_id_otro_art   ARTICULOS.ID_ARTICULO%TYPE;
-  v_id_comprador  USUARIOS.ID_USUARIO%TYPE;
-BEGIN
-  -- Tomamos un artículo existente (que NO pertenece al comprador)
-  SELECT MIN(ID_ARTICULO) INTO v_id_otro_art FROM ARTICULOS;
-
-  -- Obtenemos el ID del usuario 'comprador01'
-  SELECT ID_USUARIO INTO v_id_comprador
-  FROM USUARIOS
-  WHERE USERNAME = 'comprador01';
-
-  -- Intentamos publicar con el comprador (debería lanzar e_no_duenio)
-  BEGIN
-    PKG_MERCADO.P_PUBLICAR_ARTICULO(
-      p_id_vendedor => v_id_comprador,
-      p_id_articulo => v_id_otro_art,
-      p_precio_clp  => 99999
-    );
-    DBMS_OUTPUT.PUT_LINE('No lanzó excepción (revisar que el artículo no sea del comprador).');
-  EXCEPTION
-    WHEN PKG_MERCADO.e_no_duenio THEN
-      DBMS_OUTPUT.PUT_LINE('OK: excepción de dueño capturada.');
-    WHEN OTHERS THEN
-      DBMS_OUTPUT.PUT_LINE('Otra excepción: '||SQLERRM);
-  END;
-END;
-/
-
-*/
-
+--Depositar saldo al comprador (prueba)
+UPDATE BILLETERA_USUARIO SET SALDO_CLP=700000 WHERE ID_USUARIO=(SELECT ID_USUARIO FROM USUARIOS WHERE USERNAME='comprador01');
+INSERT INTO MOVIMIENTOS_BILLETERA(ID_USUARIO,TIPO,MONTO_CLP,REF_TX) VALUES((SELECT ID_USUARIO FROM USUARIOS WHERE USERNAME='comprador01'),'DEPOSITO',500000,'MANUAL');
+COMMIT;
+SELECT COUNT(*) FROM PUBLICACIONES WHERE ESTADO='ACTIVA';
+SELECT * FROM V_PUBLICACIONES_ACTIVAS;
