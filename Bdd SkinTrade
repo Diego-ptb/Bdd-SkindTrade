@@ -1,7 +1,7 @@
 SET SERVEROUTPUT ON SIZE UNLIMITED;
 
 /* ============================================================================
-   SISTEMA: SKINTRADE – PUBLICACIÓN Y GESTIÓN DE SKINS
+   SISTEMA: SKINTRADE â€“ PUBLICACIÃ“N Y GESTIÃ“N DE SKINS
 ============================================================================ */
 
 -- ============================================================================
@@ -28,7 +28,7 @@ BEGIN
 END;
 /
 -- ============================================================================
--- CATÁLOGOS
+-- CATÃ�LOGOS
 -- ============================================================================
 CREATE TABLE CATEGORIAS_PRODUCTO(
   ID_CATEGORIA NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -80,7 +80,7 @@ CREATE TABLE MOVIMIENTOS_BILLETERA(
 );
 
 -- ============================================================================
--- ARTÍCULOS y PUBLICACIONES
+-- ARTÃ�CULOS y PUBLICACIONES
 -- ============================================================================
 CREATE TABLE ARTICULOS(
   ID_ARTICULO     NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -146,21 +146,21 @@ WHERE p.ESTADO='ACTIVA';
 -- ============================================================================
 -- TRIGGERS
 -- ============================================================================
--- Trigger fila a fila: crea billetera automáticamente
+-- Trigger fila a fila: crea billetera automÃ¡ticamente
 CREATE OR REPLACE TRIGGER TRG_USUARIOS_AI
 AFTER INSERT ON USUARIOS FOR EACH ROW
 BEGIN
   INSERT INTO BILLETERA_USUARIO(ID_USUARIO,SALDO_CLP) VALUES(:NEW.ID_USUARIO,0);
 END;
 /
--- Trigger fila a fila: impide doble publicación ACTIVA
+-- Trigger fila a fila: impide doble publicaciÃ³n ACTIVA
 CREATE OR REPLACE TRIGGER TRG_PUB_AI
 BEFORE INSERT ON PUBLICACIONES FOR EACH ROW
 DECLARE v_cnt NUMBER;
 BEGIN
   SELECT COUNT(*) INTO v_cnt FROM PUBLICACIONES WHERE ID_ARTICULO=:NEW.ID_ARTICULO AND ESTADO='ACTIVA';
   IF v_cnt>0 THEN
-    RAISE_APPLICATION_ERROR(-20002,'El artículo ya tiene una publicación ACTIVA.');
+    RAISE_APPLICATION_ERROR(-20002,'El artÃ­culo ya tiene una publicaciÃ³n ACTIVA.');
   END IF;
 END;
 /
@@ -179,22 +179,22 @@ CREATE OR REPLACE PACKAGE PKG_MERCADO AS
   e_no_duenio     EXCEPTION; PRAGMA EXCEPTION_INIT(e_no_duenio,-20001);
   e_pub_inactiva  EXCEPTION; PRAGMA EXCEPTION_INIT(e_pub_inactiva,-20003);
 
-  -- INTERFAZ PÚBLICA
+  -- INTERFAZ PÃšBLICA
   FUNCTION F_PORC_COMISION RETURN NUMBER;
   FUNCTION F_EXTERIOR_DESDE_DESGASTE(p_desgaste NUMBER) RETURN VARCHAR2;
 
-  -- Publicación individual
+  -- PublicaciÃ³n individual
   PROCEDURE P_PUBLICAR_ARTICULO(p_id_vendedor NUMBER, p_id_articulo NUMBER, p_precio_clp NUMBER);
 
   -- Compra
   PROCEDURE P_COMPRAR_PUBLICACION(p_id_comprador NUMBER, p_id_publicacion NUMBER);
 
-  -- Publicación MASIVA (procesa varias filas dentro del package)
+  -- PublicaciÃ³n MASIVA (procesa varias filas dentro del package)
   PROCEDURE P_PUBLICAR_MASIVO(p_id_vendedor NUMBER, p_precio_clp NUMBER);
 END PKG_MERCADO;
 /
 CREATE OR REPLACE PACKAGE BODY PKG_MERCADO AS
-  -- Verifica si un usuario es dueño de un artículo.
+  -- Verifica si un usuario es dueÃ±o de un artÃ­culo.
   FUNCTION is_owner(p_id_vendedor NUMBER, p_id_articulo NUMBER) RETURN BOOLEAN IS
     v_duenio NUMBER;
   BEGIN
@@ -222,34 +222,34 @@ CREATE OR REPLACE PACKAGE BODY PKG_MERCADO AS
     END IF;
   END;
 
-  -- Publicación individual
+  -- PublicaciÃ³n individual
   PROCEDURE P_PUBLICAR_ARTICULO(p_id_vendedor NUMBER, p_id_articulo NUMBER, p_precio_clp NUMBER) IS 
     v_cnt NUMBER;
   BEGIN
     IF NOT is_owner(p_id_vendedor, p_id_articulo) THEN
-      RAISE_APPLICATION_ERROR(-20001,'El usuario no es dueño del artículo.');
+      RAISE_APPLICATION_ERROR(-20001,'El usuario no es dueÃ±o del artÃ­culo.');
     END IF;
 
     SELECT COUNT(*) INTO v_cnt FROM PUBLICACIONES
      WHERE ID_ARTICULO=p_id_articulo AND ESTADO='ACTIVA';
     IF v_cnt>0 THEN
-      RAISE_APPLICATION_ERROR(-20002,'El artículo ya está publicado.');
+      RAISE_APPLICATION_ERROR(-20002,'El artÃ­culo ya estÃ¡ publicado.');
     END IF;
 
     INSERT INTO PUBLICACIONES(ID_ARTICULO,ID_VENDEDOR,PRECIO_CLP,ESTADO)
     VALUES(p_id_articulo,p_id_vendedor,p_precio_clp,'ACTIVA');
   END;
 
-  -- Publicación MASIVA
+  -- PublicaciÃ³n MASIVA
   PROCEDURE P_PUBLICAR_MASIVO(p_id_vendedor NUMBER, p_precio_clp NUMBER) IS
   BEGIN
     FOR a IN (SELECT ID_ARTICULO FROM ARTICULOS WHERE ID_DUENIO=p_id_vendedor) LOOP
       BEGIN
         P_PUBLICAR_ARTICULO(p_id_vendedor,a.ID_ARTICULO,p_precio_clp);
-      EXCEPTION WHEN OTHERS THEN NULL; -- continúa aunque un artículo falle
+      EXCEPTION WHEN OTHERS THEN NULL; -- continÃºa aunque un artÃ­culo falle
       END;
     END LOOP;
-    DBMS_OUTPUT.PUT_LINE('Publicación masiva completada.');
+    DBMS_OUTPUT.PUT_LINE('PublicaciÃ³n masiva completada.');
   END;
 
   -- Compra
@@ -261,7 +261,7 @@ END PKG_MERCADO;
 /
 
 -- ============================================================================
--- DATOS DE PRUEBA BÁSICOS
+-- DATOS DE PRUEBA BÃ�SICOS
 -- ============================================================================
 INSERT INTO CATEGORIAS_PRODUCTO(NOMBRE) VALUES('RIFLE');
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE) SELECT ID_CATEGORIA,'M4A4' FROM CATEGORIAS_PRODUCTO WHERE NOMBRE='RIFLE';
@@ -270,7 +270,7 @@ INSERT INTO USUARIOS(USERNAME,EMAIL,PASS_HASH,PAIS,NIVEL_KYC) VALUES('vendedor01
 INSERT INTO USUARIOS(USERNAME,EMAIL,PASS_HASH,PAIS,NIVEL_KYC) VALUES('comprador01','comprador01@mail.com','hash','CL',1);
 INSERT INTO REGLAS_COMISION(PORCENTAJE,ACTIVA,VIGENTE_DESDE) VALUES(5,'S',TRUNC(SYSDATE)-1);
 
--- Un artículo de prueba para el vendedor01
+-- Un artÃ­culo de prueba para el vendedor01
 INSERT INTO ARTICULOS(ID_SKIN,ID_DUENIO,DESGASTE,EXTERIOR,ES_STATTRAK,ES_SOUVENIR,INDICE_PATRON,NOMBRE_ETIQUETA)
 SELECT s.ID_SKIN,(SELECT ID_USUARIO FROM USUARIOS WHERE USERNAME='vendedor01'),
        0.12,'MINIMAL WEAR','S','N',321,'RED BOOM'
@@ -278,7 +278,7 @@ FROM SKINS s WHERE s.NOMBRE='Redline';
 COMMIT;
 
 -- ============================================================================
---  Modelos/Skins/Usuarios para publicar varios artículos --
+--  Modelos/Skins/Usuarios para publicar varios artÃ­culos --
 -- ============================================================================
 -- MODELOS
 INSERT INTO MODELOS_ARMA(ID_CATEGORIA,NOMBRE)
@@ -327,7 +327,7 @@ WHERE NOT EXISTS (SELECT 1 FROM USUARIOS WHERE USERNAME='comprador02');
 
 COMMIT;
 
--- Crear ARTÍCULOS para cada vendedor
+-- Crear ARTÃ�CULOS para cada vendedor
 INSERT INTO ARTICULOS(ID_SKIN,ID_DUENIO,DESGASTE,EXTERIOR,ES_STATTRAK,ES_SOUVENIR,INDICE_PATRON,NOMBRE_ETIQUETA)
 SELECT s.ID_SKIN,(SELECT ID_USUARIO FROM USUARIOS WHERE USERNAME='vendedor02'),
        0.22,'FIELD-TESTED','N','N',111,'VULCAN #1'
@@ -337,10 +337,11 @@ WHERE s.NOMBRE='Vulcan'
 
 INSERT INTO ARTICULOS(ID_SKIN,ID_DUENIO,DESGASTE,EXTERIOR,ES_STATTRAK,ES_SOUVENIR,INDICE_PATRON,NOMBRE_ETIQUETA)
 SELECT s.ID_SKIN,(SELECT ID_USUARIO FROM USUARIOS WHERE USERNAME='vendedor03'),
-       0.08,'MINIMAL WEAR','S','N',77,'ASIIMOV #1'
+       0.08,'FACTORY NEW','N','S',67,'ASIIMOV #2'
 FROM SKINS s
 WHERE s.NOMBRE='Asiimov'
-  AND NOT EXISTS (SELECT 1 FROM ARTICULOS a WHERE a.NOMBRE_ETIQUETA='ASIIMOV #1');
+  AND NOT EXISTS (SELECT 1 FROM ARTICULOS a WHERE a.NOMBRE_ETIQUETA='ASIIMOV #2');
+
 
 INSERT INTO ARTICULOS(ID_SKIN,ID_DUENIO,DESGASTE,EXTERIOR,ES_STATTRAK,ES_SOUVENIR,INDICE_PATRON,NOMBRE_ETIQUETA)
 SELECT s.ID_SKIN,(SELECT ID_USUARIO FROM USUARIOS WHERE USERNAME='vendedor01'),
@@ -352,7 +353,7 @@ WHERE s.NOMBRE='Golden Coil'
 COMMIT;
 
 -- ============================================================================
--- PRUEBA 1: PUBLICACIÓN INDIVIDUAL --
+-- PRUEBA 1: PUBLICACIÃ“N INDIVIDUAL --
 -- ============================================================================
 DECLARE
   v_vend USUARIOS.ID_USUARIO%TYPE;
@@ -366,7 +367,7 @@ END;
 SELECT * FROM V_PUBLICACIONES_ACTIVAS;
 
 -- ============================================================================
--- PRUEBA 2: PUBLICACIÓN MASIVA (si ya está publicado, no duplica)
+-- PRUEBA 2: PUBLICACIÃ“N MASIVA (si ya estÃ¡ publicado, no duplica)
 -- ============================================================================
 DECLARE
   v_id_vendedor USUARIOS.ID_USUARIO%TYPE;
@@ -383,7 +384,7 @@ END;
 SELECT COUNT(*) AS total_activas FROM PUBLICACIONES WHERE ESTADO='ACTIVA';
 SELECT * FROM V_PUBLICACIONES_ACTIVAS ORDER BY CREADO_EN DESC;
 
--- Publicar artículos extra (individual; ignora si ya están publicados)
+-- Publicar artÃ­culos extra (individual; ignora si ya estÃ¡n publicados)
 DECLARE
   v_v1 USUARIOS.ID_USUARIO%TYPE;
   v_v2 USUARIOS.ID_USUARIO%TYPE;
@@ -399,7 +400,7 @@ BEGIN
 
   SELECT ID_ARTICULO INTO v_a1 FROM ARTICULOS WHERE NOMBRE_ETIQUETA='RED BOOM';
   SELECT ID_ARTICULO INTO v_a2 FROM ARTICULOS WHERE NOMBRE_ETIQUETA='VULCAN #1';
-  SELECT ID_ARTICULO INTO v_a3 FROM ARTICULOS WHERE NOMBRE_ETIQUETA='ASIIMOV #1';
+  SELECT ID_ARTICULO INTO v_a3 FROM ARTICULOS WHERE NOMBRE_ETIQUETA='ASIIMOV #2';
   SELECT ID_ARTICULO INTO v_a4 FROM ARTICULOS WHERE NOMBRE_ETIQUETA='COIL #1';
 
   BEGIN PKG_MERCADO.P_PUBLICAR_ARTICULO(v_v1, v_a1, 120000); EXCEPTION WHEN OTHERS THEN NULL; END;
@@ -408,7 +409,31 @@ BEGIN
   BEGIN PKG_MERCADO.P_PUBLICAR_ARTICULO(v_v1, v_a4, 180000); EXCEPTION WHEN OTHERS THEN NULL; END;
 END;
 /
--- Conteo y verificación final
+
+SELECT NOMBRE_ETIQUETA, COUNT(*)
+FROM ARTICULOS
+WHERE NOMBRE_ETIQUETA IN ('RED BOOM','VULCAN #1','ASIIMOV #1','COIL #1')
+GROUP BY NOMBRE_ETIQUETA;
+
+DELETE FROM ARTICULOS
+WHERE NOMBRE_ETIQUETA='ASIIMOV #2'
+AND ROWNUM = 2; -- elimina uno de ellos
+
+SELECT NOMBRE_ETIQUETA, COUNT(*) AS CANTIDAD
+FROM ARTICULOS
+WHERE NOMBRE_ETIQUETA IN ('RED BOOM','VULCAN #1','ASIIMOV #1','COIL #1')
+GROUP BY NOMBRE_ETIQUETA;
+--BORRA ARTICULOS
+DELETE FROM ARTICULOS
+WHERE NOMBRE_ETIQUETA = 'ASIIMOV #1'
+AND ROWID NOT IN (
+  SELECT MIN(ROWID) FROM ARTICULOS WHERE NOMBRE_ETIQUETA = 'ASIIMOV #1'
+);
+COMMIT;
+
+
+
+-- Conteo y verificaciÃ³n final
 SELECT COUNT(*) AS total_activas FROM PUBLICACIONES WHERE ESTADO='ACTIVA';
 SELECT u.USERNAME, m.NOMBRE AS MODELO, COUNT(*) AS pubs_activas
 FROM PUBLICACIONES p
@@ -424,10 +449,10 @@ SELECT * FROM V_PUBLICACIONES_ACTIVAS ORDER BY CREADO_EN DESC;
 
 /* =========================================================================
    - RECORD y VARRAY
-   - Cursores con y sin parámetros (loops anidados)
+   - Cursores con y sin parÃ¡metros (loops anidados)
    - Excepciones predefinidas y personalizadas
 ============================================================================ */
--- RECORD + VARRAY: Top N skins más listadas (sin semilla)
+-- RECORD + VARRAY: Top N skins mÃ¡s listadas (sin semilla)
 DECLARE
   TYPE t_skin_rank IS RECORD(
     id_skin NUMBER,
@@ -436,7 +461,7 @@ DECLARE
   );
   TYPE t_arr_skin_rank IS VARRAY(10) OF t_skin_rank;
 
-  v_top   t_arr_skin_rank := t_arr_skin_rank();  -- arranca vacío
+  v_top   t_arr_skin_rank := t_arr_skin_rank();  -- arranca vacÃ­o
   v_elem  t_skin_rank;
   v_cnt   PLS_INTEGER := 0;
 
@@ -474,7 +499,7 @@ EXCEPTION
 END;
 /
 
--- Cursor CON parámetro + loops anidados: publicaciones por categoría y modelo
+-- Cursor CON parÃ¡metro + loops anidados: publicaciones por categorÃ­a y modelo
 DECLARE
   CURSOR c_categorias IS
     SELECT ID_CATEGORIA, NOMBRE FROM CATEGORIAS_PRODUCTO;
@@ -487,7 +512,7 @@ DECLARE
 BEGIN
   FOR cat IN c_categorias LOOP
     v_total_cat := 0;
-    DBMS_OUTPUT.PUT_LINE('Categoría: '||cat.NOMBRE);
+    DBMS_OUTPUT.PUT_LINE('CategorÃ­a: '||cat.NOMBRE);
 
     FOR v_mod IN c_modelos(cat.ID_CATEGORIA) LOOP
       DECLARE
@@ -506,7 +531,7 @@ BEGIN
       END;
     END LOOP;
 
-    DBMS_OUTPUT.PUT_LINE('Total categoría '||cat.NOMBRE||': '||v_total_cat);
+    DBMS_OUTPUT.PUT_LINE('Total categorÃ­a '||cat.NOMBRE||': '||v_total_cat);
   END LOOP;
 END;
 /
@@ -531,7 +556,7 @@ JOIN CATEGORIAS_PRODUCTO c ON c.ID_CATEGORIA = m.ID_CATEGORIA
 ORDER BY c.NOMBRE, m.NOMBRE, s.NOMBRE;
 
 
--- ===== Crear un artículo NUEVO para vendedor02 =====
+-- ===== Crear un artÃ­culo NUEVO para vendedor02 =====
 DECLARE
   v_vend USUARIOS.ID_USUARIO%TYPE;
 BEGIN
@@ -540,7 +565,7 @@ BEGIN
   FROM USUARIOS
   WHERE USERNAME = 'vendedor02';
 
-  -- Insertar un nuevo artículo con la skin “Golden Coil”
+  -- Insertar un nuevo artÃ­culo con la skin â€œGolden Coilâ€�
   INSERT INTO ARTICULOS(
     ID_SKIN, ID_DUENIO, DESGASTE, EXTERIOR,
     ES_STATTRAK, ES_SOUVENIR, INDICE_PATRON, NOMBRE_ETIQUETA
@@ -559,7 +584,7 @@ JOIN SKINS s ON s.ID_SKIN = a.ID_SKIN
 ORDER BY a.ID_ARTICULO DESC;
 
 
--- ===== Publicar el artículo recién creado =====
+-- ===== Publicar el artÃ­culo reciÃ©n creado =====
 DECLARE
   v_vend USUARIOS.ID_USUARIO%TYPE;
   v_art  ARTICULOS.ID_ARTICULO%TYPE;
@@ -569,7 +594,7 @@ BEGIN
   FROM USUARIOS
   WHERE USERNAME = 'vendedor02';
 
-  -- Obtener ID del artículo por su etiqueta
+  -- Obtener ID del artÃ­culo por su etiqueta
   SELECT ID_ARTICULO INTO v_art
   FROM ARTICULOS
   WHERE NOMBRE_ETIQUETA = 'COIL_NUEVO';
