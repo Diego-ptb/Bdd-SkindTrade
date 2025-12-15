@@ -610,3 +610,15 @@ END;
 
 SELECT * FROM V_PUBLICACIONES_ACTIVAS ORDER BY CREADO_EN DESC;
 */
+
+// UPDATE: sumar +1 al stock de todas las skins con stock >= 10
+db.skins.updateMany(
+  { stock: { $gte: 10 } },     // Filtro: solo skins con stock 10 o más
+  { $inc: { stock: 1 } }       // Operación: incrementa el stock en +1
+);
+
+// UPDATE: sumar +1 al stock de todas las skins con stock < 10
+db.skins.updateMany(
+  { stock: { $lt: 10 } },   // MENOR que 10
+  { $inc: { stock: 1 } }
+);
